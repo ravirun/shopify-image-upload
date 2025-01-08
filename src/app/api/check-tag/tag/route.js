@@ -1,24 +1,24 @@
+import { NextResponse } from "next/server";
 import fetch from "node-fetch";
 
-export default async function handler(req, res) {
-  // Ensure we handle only POST requests
-  if (req.method !== "POST") {
-    return res.status(405).json({ error: "Method Not Allowed" });
-  }
-
-  // Extract the data from the request body
-  const { folderNames, storeUrl, apiKey } = req.body;
-
-  if (!folderNames || !storeUrl || !apiKey) {
-    return res.status(400).json({ error: "Missing required parameters" });
-  }
-
-  // Build the request URL for Shopify API
-  const url = `${storeUrl}/admin/api/2023-10/products.json?tag=${folderNames.join(
-    ","
-  )}`;
-
+export async function POST(req) {
   try {
+    // Parse the request body
+    const body = await req.json();
+    const { folderNames, storeUrl, apiKey } = body;
+
+    if (!folderNames || !storeUrl || !apiKey) {
+      return NextResponse.json(
+        { error: "Missing required parameters" },
+        { status: 400 }
+      );
+    }
+
+    // Build the request URL for Shopify API
+    const url = `${storeUrl}/admin/api/2023-10/products.json?tag=${folderNames.join(
+      ","
+    )}`;
+
     // Fetch data from Shopify API
     const response = await fetch(url, {
       method: "GET",
@@ -28,25 +28,29 @@ export default async function handler(req, res) {
       },
     });
 
-    // Check if the response is successful
     if (!response.ok) {
-      throw new Error("Failed to fetch products from Shopify");
+      return NextResponse.json(
+        { error: "Failed to fetch products from Shopify" },
+        { status: response.status }
+      );
     }
 
-    // Parse the JSON response from Shopify
+    // Parse the JSON response
     const data = await response.json();
 
-    // If no products found, return a message
     if (!data.products || data.products.length === 0) {
-      return res
-        .status(404)
-        .json({ error: "No products found for the provided tags" });
+      return NextResponse.json(
+        { error: "No products found for the provided tags" },
+        { status: 404 }
+      );
     }
 
-    // Respond with the product data
-    res.status(200).json(data);
+    return NextResponse.json(data, { status: 200 });
   } catch (error) {
     console.error("Error fetching from Shopify:", error);
-    res.status(500).json({ error: error.message });
+    return NextResponse.json(
+      { error: error.message || "Internal Server Error" },
+      { status: 500 }
+    );
   }
 }
