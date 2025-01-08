@@ -1,17 +1,16 @@
 "use client";
 import { useState, useEffect } from "react";
+import imageCompression from "browser-image-compression";
 
 const Upload = () => {
   const [files, setFiles] = useState([]);
   const [status, setStatus] = useState("");
   const [folderNames, setFolderNames] = useState(new Set());
-  const [apiOption, setApiOption] = useState("title"); // Default API endpoint is SKU
-  const [skippedUploads, setSkippedUploads] = useState([]);
+  const [apiOption, setApiOption] = useState("title");
   const [storeUrl, setStoreUrl] = useState(null);
   const [apiKey, setApiKey] = useState(null);
 
   useEffect(() => {
-    // Ensure sessionStorage is only accessed on the client-side
     if (typeof window !== "undefined") {
       const storedStoreUrl = sessionStorage.getItem("shopifyStoreUrl");
       const storedApiKey = sessionStorage.getItem("shopifyApiKey");
@@ -25,82 +24,50 @@ const Upload = () => {
     }
   }, []);
 
-  // Handle file upload with reverse order based on numbers
-  const handleFileUpload = async () => {
+  const handleFileUpload = async (e) => {
+    e.preventDefault(); // Prevent default form submission behavior
+
     if (!storeUrl || !apiKey) {
       return setStatus("Please provide Shopify Store URL and API Key.");
     }
 
     if (files.length === 0) {
-      console.log("No folders selected.");
-      return setStatus("No folders selected.");
+      return setStatus("No files selected.");
     }
 
     setStatus("Uploading folders...");
-    console.log("Preparing form data for upload");
-
     const formData = new FormData();
-
-    // Organize files by folder and sort by number in reverse order
     const folderData = {};
 
+    // Organize files by folder
     files.forEach((file) => {
-      const folderPath = file.webkitRelativePath.split("/")[0]; // Get the folder name
-
-      // Skip non-image files (e.g., .DS_Store, etc.)
+      const folderPath = file.webkitRelativePath.split("/")[0];
       if (!file.type.startsWith("image/")) {
         console.log(`Skipping non-image file: ${file.name}`);
         return;
       }
-
       if (!folderData[folderPath]) {
         folderData[folderPath] = [];
       }
       folderData[folderPath].push(file);
-      console.log(
-        `Appending file: ${file.webkitRelativePath} to folder: ${folderPath}`
+    });
+
+    // Compress images before uploading
+    for (const folder in folderData) {
+      const compressedFiles = await imgCompressWithoutNameChange(
+        folderData[folder]
       );
-    });
-
-    // Sort files within each folder by number in reverse order
-    Object.keys(folderData).forEach((folder) => {
-      folderData[folder].sort((a, b) => {
-        // Extract number from filename (if available) using regex
-        const extractNumber = (filename) => {
-          const match = filename.split(".")[0].match(/\d+/); // Match digits at the start of the filename
-          return match ? parseInt(match[0], 10) : NaN; // Return number or NaN if not found
-        };
-
-        const aNumber = extractNumber(a.name);
-        const bNumber = extractNumber(b.name);
-
-        // If both filenames are valid numbers, compare them
-        if (!isNaN(aNumber) && !isNaN(bNumber)) {
-          return bNumber - aNumber; // Sort in descending order (reverse)
-        }
-
-        // If only one filename is a valid number, put the invalid ones last
-        if (isNaN(aNumber)) return 1; // Move a to the end if it's invalid
-        if (isNaN(bNumber)) return -1; // Move b to the end if it's invalid
-
-        // If neither filename is a valid number, keep their current order (or assign default number)
-        return 0;
+      compressedFiles.forEach((file) => {
+        formData.append(`${folder}/${file.name}`, file);
       });
-    });
+    }
 
-    // Append folder data to formData
-    Object.keys(folderData).forEach((folder) => {
-      folderData[folder].forEach((file) => {
-        formData.append(`${folder}/${file.name}`, file); // Append each file under the folder name
-      });
-    });
-
-    // Add Shopify store URL, API key, and selected option to formData
+    // Append store URL, API key, and API option
     formData.append("storeUrl", storeUrl);
     formData.append("apiKey", apiKey);
     formData.append("apiOption", apiOption);
 
-    console.log(`Sending upload request to /api/upload/${apiOption}`);
+    // Use fetch API for form submission with action URL
     const response = await fetch(`/api/upload/${apiOption}`, {
       method: "POST",
       body: formData,
@@ -110,12 +77,8 @@ const Upload = () => {
 
     if (response.ok) {
       setStatus("Folders uploaded successfully.");
-      console.log("Upload successful:", result);
-      const skipped = result.folderUploads;
-      console.log(skipped);
     } else {
       setStatus(`Upload failed: ${result.error}`);
-      console.error("Upload failed:", result.error);
     }
   };
 
@@ -131,60 +94,132 @@ const Upload = () => {
     });
 
     setFolderNames(newFolderNames);
-    console.log("Files selected:", selectedFiles);
-    console.log("Selected folders:", Array.from(newFolderNames));
   };
 
   const handleDeleteFolder = (folderName) => {
-    // Remove folder from the folderNames set
     const updatedFolders = new Set(folderNames);
     updatedFolders.delete(folderName);
 
-    // Filter files to remove those belonging to the deleted folder
     const updatedFiles = files.filter(
       (file) => !file.webkitRelativePath.startsWith(folderName)
     );
 
     setFolderNames(updatedFolders);
     setFiles(updatedFiles);
+  };
 
-    console.log(`Deleted folder: ${folderName}`);
+  const imgCompressWithoutNameChange = async (files) => {
+    const compressedFiles = [];
+
+    for (const file of files) {
+      try {
+        const options = {
+          maxSizeMB: 2.5,
+          maxWidthOrHeight: 800,
+          useWebWorker: true,
+        };
+
+        // Compress the image first
+        const compressedFile = await imageCompression(file, options);
+
+        // Convert the compressed image to WebP format
+        const webpBlob = await convertToWebP(compressedFile);
+
+        // Create a new file from the WebP blob
+        const compressedFileWithOriginalName = new File(
+          [webpBlob],
+          file.name.replace(/\.[^/.]+$/, ".webp"),
+          {
+            type: "image/webp",
+          }
+        );
+
+        compressedFiles.push(compressedFileWithOriginalName);
+      } catch (error) {
+        console.error("Error compressing file", file.name, error);
+      }
+    }
+
+    console.log(compressedFiles);
+    return compressedFiles;
+  };
+
+  // Helper function to convert a Blob or File to WebP
+  const convertToWebP = (file) => {
+    return new Promise((resolve, reject) => {
+      const canvas = document.createElement("canvas");
+      const ctx = canvas.getContext("2d");
+      const img = new Image();
+
+      img.onload = () => {
+        canvas.width = img.width;
+        canvas.height = img.height;
+        ctx.drawImage(img, 0, 0);
+
+        canvas.toBlob(
+          (blob) => {
+            if (blob) {
+              resolve(blob);
+            } else {
+              reject("Failed to convert to WebP");
+            }
+          },
+          "image/webp",
+          0.8 // Compression quality (0-1)
+        );
+      };
+
+      img.onerror = () => reject("Failed to load image");
+
+      img.src = URL.createObjectURL(file);
+    });
   };
 
   return (
     <div className="container mx-auto p-8">
       <div className="bg-white shadow rounded-lg p-6">
         <h1 className="text-2xl font-bold mb-4">Shopify Folder Upload Tool</h1>
-        <input
-          type="file"
-          webkitdirectory="true"
-          multiple
-          onChange={handleFolderSelection}
-          className="block w-full border border-gray-300 rounded p-2 mb-4"
-        />
 
-        <div className="mb-4">
-          <label htmlFor="apiOption" className="block text-sm font-medium mb-1">
-            Upload by:
-          </label>
-          <select
-            id="apiOption"
-            value={apiOption}
-            onChange={(e) => setApiOption(e.target.value)}
-            className="block w-full border border-gray-300 rounded p-2"
-          >
-            <option value="title">Title</option>
-            <option value="sku">SKU</option>
-            <option value="id">ID</option>
-          </select>
-        </div>
-
-        <button
-          onClick={handleFileUpload}
-          className="bg-blue-600 text-white rounded py-2 px-4 hover:bg-blue-700 transition"
+        {/* Use a form with action */}
+        <form
+          onSubmit={handleFileUpload}
+          method="POST"
+          encType="multipart/form-data"
         >
-          Upload Folders
-        </button>
+          <input
+            type="file"
+            webkitdirectory="true"
+            multiple
+            onChange={handleFolderSelection}
+            className="block w-full border border-gray-300 rounded p-2 mb-4"
+          />
+
+          <div className="mb-4">
+            <label
+              htmlFor="apiOption"
+              className="block text-sm font-medium mb-1"
+            >
+              Upload by:
+            </label>
+            <select
+              id="apiOption"
+              value={apiOption}
+              onChange={(e) => setApiOption(e.target.value)}
+              className="block w-full border border-gray-300 rounded p-2"
+            >
+              <option value="title">Title</option>
+              <option value="sku">SKU</option>
+              <option value="id">ID</option>
+            </select>
+          </div>
+
+          <button
+            type="submit"
+            className="bg-blue-600 text-white rounded py-2 px-4 hover:bg-blue-700 transition"
+          >
+            Upload Folders
+          </button>
+        </form>
 
         <p className="mt-4 text-gray-700">{status}</p>
 

@@ -4,7 +4,7 @@ import FormData from "form-data";
 import sharp from "sharp";
 
 // Utility for Shopify API Rate Limit Handling
-const rateLimitedFetch = async (url, options, retries = 5) => {
+const rateLimitedFetch = async (url, options, retries = 3) => {
   for (let i = 0; i < retries; i++) {
     const response = await fetch(url, options);
 
@@ -24,32 +24,9 @@ const rateLimitedFetch = async (url, options, retries = 5) => {
   throw new Error("Maximum retries exceeded.");
 };
 
-// Fetch product by title
-const fetchProductByTitle = async (
-  productTitle,
-  SHOPIFY_STORE_URL,
-  SHOPIFY_ACCESS_TOKEN
-) => {
-  const url = `${SHOPIFY_STORE_URL}/admin/api/2023-10/products.json?title=${encodeURIComponent(
-    productTitle
-  )}`;
-  const options = {
-    method: "GET",
-    headers: {
-      "X-Shopify-Access-Token": SHOPIFY_ACCESS_TOKEN,
-      "Content-Type": "application/json",
-    },
-  };
-
-  const response = await rateLimitedFetch(url, options);
-  const data = await response.json();
-  return data.products[0] || null; // Return first product
-};
-
 // Convert to WebP
 const convertToWebP = async (fileBuffer, fileName) => {
   const fileExtension = fileName.split(".").pop().toLowerCase();
-
   if (fileExtension === "webp") return fileBuffer;
 
   let webpBuffer = await sharp(fileBuffer).webp({ quality: 80 }).toBuffer();
@@ -61,25 +38,63 @@ const convertToWebP = async (fileBuffer, fileName) => {
   return webpBuffer;
 };
 
+// Fetch product from Shopify by title or variant name
+const fetchProduct = async (
+  productIdentifier,
+  shopifyStoreUrl,
+  shopifyAccessToken,
+  isVariantSearch = false
+) => {
+  const url = isVariantSearch
+    ? `${shopifyStoreUrl}/admin/api/2023-10/products/${productIdentifier}.json`
+    : `${shopifyStoreUrl}/admin/api/2023-10/products.json?title=${encodeURIComponent(
+        productIdentifier
+      )}`;
+
+  const options = {
+    method: "GET",
+    headers: {
+      "X-Shopify-Access-Token": shopifyAccessToken,
+      "Content-Type": "application/json",
+    },
+  };
+
+  const response = await rateLimitedFetch(url, options);
+  const data = await response.json();
+
+  if (isVariantSearch) {
+    const product = data.product;
+    const variants = product.variants.filter((v) =>
+      v.title.toLowerCase().includes(productIdentifier.toLowerCase())
+    );
+    return variants.length > 0 ? { product, variants } : null;
+  }
+
+  return data.products[0] || null; // Return first product for title search
+};
+
 // Upload image to Shopify
 const uploadImageToShopify = async (
   productId,
   fileBuffer,
   fileName,
-  SHOPIFY_STORE_URL,
-  SHOPIFY_ACCESS_TOKEN,
-  position
+  shopifyStoreUrl,
+  shopifyAccessToken,
+  position = null,
+  variantIds = []
 ) => {
-  const url = `${SHOPIFY_STORE_URL}/admin/api/2023-10/products/${productId}/images.json`;
+  const url = `${shopifyStoreUrl}/admin/api/2023-10/products/${productId}/images.json`;
   const formData = new FormData();
   formData.append("image[attachment]", fileBuffer.toString("base64"));
   formData.append("image[filename]", fileName);
-  formData.append("image[position]", position); // Add position to the image
+  if (position !== null) formData.append("image[position]", position);
+  if (variantIds.length)
+    formData.append("image[variant_ids]", JSON.stringify(variantIds));
 
   const options = {
     method: "POST",
     headers: {
-      "X-Shopify-Access-Token": SHOPIFY_ACCESS_TOKEN,
+      "X-Shopify-Access-Token": shopifyAccessToken,
     },
     body: formData,
   };
@@ -90,7 +105,7 @@ const uploadImageToShopify = async (
 };
 
 // Process images concurrently
-const processConcurrently = async (tasks, limit) => {
+const processConcurrently = async (tasks, limit, delay = 500) => {
   const results = [];
   const executing = [];
 
@@ -100,6 +115,7 @@ const processConcurrently = async (tasks, limit) => {
     });
 
     executing.push(promise);
+
     if (executing.length >= limit) {
       await Promise.race(executing);
       executing.splice(
@@ -107,131 +123,65 @@ const processConcurrently = async (tasks, limit) => {
         1
       );
     }
+
+    await new Promise((resolve) => setTimeout(resolve, delay));
   }
 
   await Promise.all(executing);
   return results;
 };
 
-// Fetch product by variant name using product ID
-const fetchProductByVariantName = async (
-  productId,
-  variantName,
-  SHOPIFY_STORE_URL,
-  SHOPIFY_ACCESS_TOKEN
-) => {
-  const url = `${SHOPIFY_STORE_URL}/admin/api/2023-10/products/${productId}.json`;
-  const options = {
-    method: "GET",
-    headers: {
-      "X-Shopify-Access-Token": SHOPIFY_ACCESS_TOKEN,
-      "Content-Type": "application/json",
-    },
-  };
-
-  const response = await rateLimitedFetch(url, options);
-  if (!response.ok) {
-    throw new Error(`Failed to fetch product: ${response.statusText}`);
-  }
-
-  const data = await response.json();
-
-  const product = data.product;
-  if (product) {
-    const variants = product.variants.filter((v) =>
-      v.title.toLowerCase().includes(variantName.toLowerCase())
-    );
-    if (variants.length > 0) {
-      return { product, variants };
-    }
-  }
-
-  return null; // Return null if no matching variants found
-};
-
-// Upload image to all matching variants
-const uploadImageToVariant = async (
-  productId,
-  variantName,
+// Upload image to Shopify based on product title or variant name
+const handleImageUpload = async (
+  productTitle,
   fileBuffer,
   fileName,
-  SHOPIFY_STORE_URL,
-  SHOPIFY_ACCESS_TOKEN
+  shopifyStoreUrl,
+  shopifyAccessToken,
+  position,
+  variantName = null
 ) => {
-  const productData = await fetchProductByVariantName(
-    productId,
-    variantName,
-    SHOPIFY_STORE_URL,
-    SHOPIFY_ACCESS_TOKEN
-  );
+  const product = variantName
+    ? await fetchProduct(
+        productTitle,
+        shopifyStoreUrl,
+        shopifyAccessToken,
+        true
+      )
+    : await fetchProduct(productTitle, shopifyStoreUrl, shopifyAccessToken);
 
-  if (!productData) {
-    throw new Error(`No product found with variant name: ${variantName}`);
+  if (!product) {
+    console.log(`No product found for title: ${productTitle}`);
+    return;
   }
 
-  const { product, variants } = productData;
-
-  // Convert image to WebP format (or use the original format if not necessary)
   const convertedImageBuffer = await convertToWebP(fileBuffer, fileName);
 
-  // Create the image payload
-  const imagePayload = {
-    image: {
-      attachment: convertedImageBuffer.toString("base64"), // Convert buffer to base64
-      filename: fileName,
-      variant_ids: variants.map((variant) => variant.id), // Associate the image with all matching variant IDs
-    },
-  };
-
-  const url = `${SHOPIFY_STORE_URL}/admin/api/2023-10/products/${product.id}/images.json`;
-  const options = {
-    method: "POST",
-    headers: {
-      "X-Shopify-Access-Token": SHOPIFY_ACCESS_TOKEN,
-      "Content-Type": "application/json",
-    },
-    body: JSON.stringify(imagePayload),
-  };
-
-  const response = await rateLimitedFetch(url, options);
-  const data = await response.json();
-
-  if (!response.ok) {
-    console.error(`Error uploading image: ${JSON.stringify(data.errors)}`);
-    throw new Error("Failed to upload image");
-  }
-
-  return data.image; // Return the uploaded image details
-};
-
-// Example Usage
-const uploadImageForVariant = async (
-  productId,
-  variantName,
-  fileBuffer,
-  fileName,
-  SHOPIFY_STORE_URL,
-  SHOPIFY_ACCESS_TOKEN
-) => {
-  try {
-    const uploadedImage = await uploadImageToVariant(
-      productId,
-      variantName,
-      fileBuffer,
+  if (variantName && product.variants) {
+    await uploadImageToShopify(
+      product.product.id,
+      convertedImageBuffer,
       fileName,
-      SHOPIFY_STORE_URL,
-      SHOPIFY_ACCESS_TOKEN
+      shopifyStoreUrl,
+      shopifyAccessToken,
+      position,
+      product.variants.map((v) => v.id)
     );
-    console.log(`Image successfully uploaded:`, uploadedImage);
-  } catch (error) {
-    console.error("Error uploading image:", error.message);
+  } else {
+    await uploadImageToShopify(
+      product.id,
+      convertedImageBuffer,
+      fileName,
+      shopifyStoreUrl,
+      shopifyAccessToken,
+      position
+    );
   }
 };
 
 // Main Handler with Time Tracking
 export const POST = async (req) => {
   try {
-    // Get Shopify credentials from the form data (not JSON body)
     const formData = await req.formData();
     const shopifyStoreUrl = formData.get("storeUrl");
     const shopifyAccessToken = formData.get("apiKey");
@@ -243,76 +193,55 @@ export const POST = async (req) => {
       );
     }
 
-    const overallStartTime = Date.now(); // Start time for the whole process
+    const overallStartTime = Date.now();
     const folderUploads = {};
 
     const tasks = [];
-
     for (const [key, file] of formData.entries()) {
       tasks.push(async () => {
-        const startTime = Date.now(); // Track start time for each folder
-        const productTitle = key.split("/")[0]; // Extract product title from the path
-        const product = await fetchProductByTitle(
-          productTitle,
-          shopifyStoreUrl,
-          shopifyAccessToken
-        );
-
-        if (!product) {
-          console.log(`No product found for title: ${productTitle}`);
-          return;
-        }
-
+        const startTime = Date.now();
+        const productTitle = key.split("/")[0];
         const fileBuffer = Buffer.from(await file.arrayBuffer());
-        const convertedImageBuffer = await convertToWebP(fileBuffer, file.name);
-
-        // Extract file name and position from the filename (without path)
-        const fileName = file.name.split("/").pop(); // Get filename from the path
-        const positionStr = fileName.split(".")[0]; // Get part before the extension
-        const position = isNaN(positionStr) ? "NaN" : Number(positionStr); // Validate number
+        const fileName = file.name.split("/").pop();
+        const positionStr = fileName.split(".")[0];
+        const position = isNaN(positionStr) ? "NaN" : Number(positionStr);
 
         if (isNaN(position)) {
           console.log(
             `The position for ${fileName} is NaN. Uploading to variant.`
           );
-
-          // If position is NaN, upload the image to the variant
-          await uploadImageForVariant(
-            product.id,
-            fileName.split(".")[0],
+          await handleImageUpload(
+            productTitle,
             fileBuffer,
             fileName,
             shopifyStoreUrl,
-            shopifyAccessToken
+            shopifyAccessToken,
+            position,
+            fileName.split(".")[0]
           );
         } else {
-          // If position is valid number, upload image to the product
-          const uploadedImage = await uploadImageToShopify(
-            product.id,
-            convertedImageBuffer,
-            file.name,
+          await handleImageUpload(
+            productTitle,
+            fileBuffer,
+            fileName,
             shopifyStoreUrl,
             shopifyAccessToken,
             position
           );
-
-          // Store uploaded image info
-          folderUploads[productTitle] = folderUploads[productTitle] || [];
-          folderUploads[productTitle].push(uploadedImage);
         }
 
-        console.log(`Processed ${productTitle} in ${Date.now() - startTime}ms`); // Log folder processing time
+        console.log(`Processed ${productTitle} in ${Date.now() - startTime}ms`);
       });
     }
 
-    await processConcurrently(tasks, 5); // Process 5 tasks concurrently
+    await processConcurrently(tasks, 5, 1000);
 
-    console.log(`Overall processing time: ${Date.now() - overallStartTime}ms`); // Log total processing time
+    console.log(`Overall processing time: ${Date.now() - overallStartTime}ms`);
 
     return NextResponse.json({
       message: "Images uploaded successfully.",
       folderUploads,
-      processingTime: `${Date.now() - overallStartTime}ms`, // Return total processing time
+      processingTime: `${Date.now() - overallStartTime}ms`,
     });
   } catch (error) {
     console.error("Error during image upload:", error.message);
