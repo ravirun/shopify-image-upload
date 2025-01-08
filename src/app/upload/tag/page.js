@@ -3,25 +3,31 @@ import { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
 import FetchShopifyProducts from "../FetchShopifyProducts";
 
-const UploadPage = () => {
+const UploadTagPage = () => {
   const [files, setFiles] = useState([]);
   const [status, setStatus] = useState("");
   const [folderNames, setFolderNames] = useState(new Set());
+  const [storeUrl, setStoreUrl] = useState(null);
+  const [apiKey, setApiKey] = useState(null);
 
   const router = useRouter();
 
-  // Get Shopify store URL and API key from sessionStorage
-  const storeUrl = sessionStorage.getItem("shopifyStoreUrl");
-  const apiKey = sessionStorage.getItem("shopifyApiKey");
-
   useEffect(() => {
-    if (!storeUrl || !apiKey) {
-      setStatus("Redirecting to the home page...");
-      router.push("/"); // Redirect to the home page if credentials are missing
-    }
-  }, [storeUrl, apiKey, router]);
+    // Ensure sessionStorage is accessed only in the browser
+    if (typeof window !== "undefined") {
+      const storedStoreUrl = sessionStorage.getItem("shopifyStoreUrl");
+      const storedApiKey = sessionStorage.getItem("shopifyApiKey");
 
-  // Handle file upload
+      if (storedStoreUrl && storedApiKey) {
+        setStoreUrl(storedStoreUrl);
+        setApiKey(storedApiKey);
+      } else {
+        setStatus("Redirecting to the home page...");
+        router.push("/"); // Redirect if credentials are missing
+      }
+    }
+  }, [router]);
+
   const handleFileUpload = async () => {
     if (!storeUrl || !apiKey) {
       return setStatus("Please provide Shopify Store URL and API Key.");
@@ -33,7 +39,6 @@ const UploadPage = () => {
 
     setStatus("Checking product by tag...");
 
-    // Send folder names first
     const folderData = {};
 
     files.forEach((file) => {
@@ -44,13 +49,11 @@ const UploadPage = () => {
       folderData[folderPath].push(file);
     });
 
-    // Send only folder names to check for the tag first
     const folderNamesArray = Object.keys(folderData);
 
     try {
-      // Correct POST request to the backend API route
       const response = await fetch("/api/check-tag/tag", {
-        method: "POST", // Ensure method is POST
+        method: "POST",
         body: JSON.stringify({
           folderNames: folderNamesArray,
           storeUrl,
@@ -74,7 +77,6 @@ const UploadPage = () => {
     }
   };
 
-  // Function to upload folders after tag is verified
   const uploadFolders = async (folderData) => {
     const formData = new FormData();
 
@@ -105,7 +107,6 @@ const UploadPage = () => {
     }
   };
 
-  // Handle folder selection
   const handleFolderSelection = (e) => {
     const selectedFiles = Array.from(e.target.files);
     setFiles((prevFiles) => [...prevFiles, ...selectedFiles]);
@@ -119,7 +120,6 @@ const UploadPage = () => {
     setFolderNames(newFolderNames);
   };
 
-  // Handle folder deletion
   const handleDeleteFolder = (folderName) => {
     const updatedFolders = new Set(folderNames);
     updatedFolders.delete(folderName);
@@ -180,4 +180,4 @@ const UploadPage = () => {
   );
 };
 
-export default UploadPage;
+export default UploadTagPage;

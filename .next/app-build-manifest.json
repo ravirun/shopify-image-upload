@@ -1,0 +1,97 @@
+{
+  "pages": {
+    "/_not-found/page": [
+      "static/chunks/webpack-c2c0a7779389d53a.js",
+      "static/chunks/4bd1b696-7f4092adee896cfb.js",
+      "static/chunks/517-698017e71a8b6cd9.js",
+      "static/chunks/main-app-21db1b4d2e44b4c1.js",
+      "static/chunks/app/_not-found/page-074eef7f7d44ed11.js"
+    ],
+    "/layout": [
+      "static/chunks/webpack-c2c0a7779389d53a.js",
+      "static/chunks/4bd1b696-7f4092adee896cfb.js",
+      "static/chunks/517-698017e71a8b6cd9.js",
+      "static/chunks/main-app-21db1b4d2e44b4c1.js",
+      "static/css/788b51f314750cdb.css",
+      "static/chunks/app/layout-10ec348a25cfe847.js"
+    ],
+    "/api/fetch-shopify-products/route": [
+      "static/chunks/webpack-c2c0a7779389d53a.js",
+      "static/chunks/4bd1b696-7f4092adee896cfb.js",
+      "static/chunks/517-698017e71a8b6cd9.js",
+      "static/chunks/main-app-21db1b4d2e44b4c1.js",
+      "static/chunks/app/api/fetch-shopify-products/route-4ba408a3882219f2.js"
+    ],
+    "/api/check-tag/tag/route": [
+      "static/chunks/webpack-c2c0a7779389d53a.js",
+      "static/chunks/4bd1b696-7f4092adee896cfb.js",
+      "static/chunks/517-698017e71a8b6cd9.js",
+      "static/chunks/main-app-21db1b4d2e44b4c1.js",
+      "static/chunks/app/api/check-tag/tag/route-d4bf5df7685de758.js"
+    ],
+    "/api/test-connection/route": [
+      "static/chunks/webpack-c2c0a7779389d53a.js",
+      "static/chunks/4bd1b696-7f4092adee896cfb.js",
+      "static/chunks/517-698017e71a8b6cd9.js",
+      "static/chunks/main-app-21db1b4d2e44b4c1.js",
+      "static/chunks/app/api/test-connection/route-3b089343807f822a.js"
+    ],
+    "/api/upload/tag/route": [
+      "static/chunks/webpack-c2c0a7779389d53a.js",
+      "static/chunks/4bd1b696-7f4092adee896cfb.js",
+      "static/chunks/517-698017e71a8b6cd9.js",
+      "static/chunks/main-app-21db1b4d2e44b4c1.js",
+      "static/chunks/app/api/upload/tag/route-2204ae42d922faed.js"
+    ],
+    "/api/upload/id/route": [
+      "static/chunks/webpack-c2c0a7779389d53a.js",
+      "static/chunks/4bd1b696-7f4092adee896cfb.js",
+      "static/chunks/517-698017e71a8b6cd9.js",
+      "static/chunks/main-app-21db1b4d2e44b4c1.js",
+      "static/chunks/app/api/upload/id/route-d3663827f6065cdd.js"
+    ],
+    "/api/upload/route": [
+      "static/chunks/webpack-c2c0a7779389d53a.js",
+      "static/chunks/4bd1b696-7f4092adee896cfb.js",
+      "static/chunks/517-698017e71a8b6cd9.js",
+      "static/chunks/main-app-21db1b4d2e44b4c1.js",
+      "static/chunks/app/api/upload/route-865d12d9c2570a7d.js"
+    ],
+    "/api/upload/sku/route": [
+      "static/chunks/webpack-c2c0a7779389d53a.js",
+      "static/chunks/4bd1b696-7f4092adee896cfb.js",
+      "static/chunks/517-698017e71a8b6cd9.js",
+      "static/chunks/main-app-21db1b4d2e44b4c1.js",
+      "static/chunks/app/api/upload/sku/route-163cb93fda8bb072.js"
+    ],
+    "/api/upload/title/route": [
+      "static/chunks/webpack-c2c0a7779389d53a.js",
+      "static/chunks/4bd1b696-7f4092adee896cfb.js",
+      "static/chunks/517-698017e71a8b6cd9.js",
+      "static/chunks/main-app-21db1b4d2e44b4c1.js",
+      "static/chunks/app/api/upload/title/route-aa6de5a5f0d18a7f.js"
+    ],
+    "/page": [
+      "static/chunks/webpack-c2c0a7779389d53a.js",
+      "static/chunks/4bd1b696-7f4092adee896cfb.js",
+      "static/chunks/517-698017e71a8b6cd9.js",
+      "static/chunks/main-app-21db1b4d2e44b4c1.js",
+      "static/chunks/238-d83525104c71d3de.js",
+      "static/chunks/app/page-ba74f0399ce0f1be.js"
+    ],
+    "/upload/page": [
+      "static/chunks/webpack-c2c0a7779389d53a.js",
+      "static/chunks/4bd1b696-7f4092adee896cfb.js",
+      "static/chunks/517-698017e71a8b6cd9.js",
+      "static/chunks/main-app-21db1b4d2e44b4c1.js",
+      "static/chunks/app/upload/page-093dbde4da092394.js"
+    ],
+    "/upload/tag/page": [
+      "static/chunks/webpack-c2c0a7779389d53a.js",
+      "static/chunks/4bd1b696-7f4092adee896cfb.js",
+      "static/chunks/517-698017e71a8b6cd9.js",
+      "static/chunks/main-app-21db1b4d2e44b4c1.js",
+      "static/chunks/app/upload/tag/page-8767dd21da2e79db.js"
+    ]
+  }
+}

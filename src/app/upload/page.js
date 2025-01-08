@@ -1,22 +1,29 @@
 "use client";
 import { useState, useEffect } from "react";
 
-const UploadPage = () => {
+const Upload = () => {
   const [files, setFiles] = useState([]);
   const [status, setStatus] = useState("");
   const [folderNames, setFolderNames] = useState(new Set());
   const [apiOption, setApiOption] = useState("title"); // Default API endpoint is SKU
   const [skippedUploads, setSkippedUploads] = useState([]);
-
-  // Get Shopify store URL and API key from sessionStorage
-  const storeUrl = sessionStorage.getItem("shopifyStoreUrl");
-  const apiKey = sessionStorage.getItem("shopifyApiKey");
+  const [storeUrl, setStoreUrl] = useState(null);
+  const [apiKey, setApiKey] = useState(null);
 
   useEffect(() => {
-    if (!storeUrl || !apiKey) {
-      setStatus("Please connect your Shopify store first.");
+    // Ensure sessionStorage is only accessed on the client-side
+    if (typeof window !== "undefined") {
+      const storedStoreUrl = sessionStorage.getItem("shopifyStoreUrl");
+      const storedApiKey = sessionStorage.getItem("shopifyApiKey");
+
+      if (storedStoreUrl && storedApiKey) {
+        setStoreUrl(storedStoreUrl);
+        setApiKey(storedApiKey);
+      } else {
+        setStatus("Please connect your Shopify store first.");
+      }
     }
-  }, [storeUrl, apiKey]);
+  }, []);
 
   // Handle file upload with reverse order based on numbers
   const handleFileUpload = async () => {
@@ -202,4 +209,4 @@ const UploadPage = () => {
   );
 };
 
-export default UploadPage;
+export default Upload;

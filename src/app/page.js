@@ -1,5 +1,5 @@
 "use client";
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
 import ShopifyProductFetcher from "./upload/ShopifyProductFetcher";
 
@@ -8,6 +8,20 @@ const LandingPage = () => {
   const [apiKey, setApiKey] = useState("");
   const [status, setStatus] = useState("");
   const router = useRouter();
+
+  useEffect(() => {
+    // Only run on the client-side to avoid errors during SSR
+    if (typeof window !== "undefined") {
+      // Access sessionStorage safely in the browser
+      const savedStoreUrl = sessionStorage.getItem("shopifyStoreUrl");
+      const savedApiKey = sessionStorage.getItem("shopifyApiKey");
+
+      if (savedStoreUrl && savedApiKey) {
+        setStoreUrl(savedStoreUrl);
+        setApiKey(savedApiKey);
+      }
+    }
+  }, []);
 
   const handleTestConnection = async () => {
     if (!storeUrl || !apiKey) {
@@ -23,18 +37,10 @@ const LandingPage = () => {
         body: JSON.stringify({ storeUrl, apiKey }),
       });
 
-      // Check response content type
-      const contentType = response.headers.get("Content-Type");
-      if (!contentType || !contentType.includes("application/json")) {
-        return setStatus(
-          "Connection failed: Invalid response from the server."
-        );
-      }
-
       const result = await response.json();
 
       if (response.ok) {
-        // Save the store URL and API key to session storage
+        // Save the store URL and API key to sessionStorage
         sessionStorage.setItem("shopifyStoreUrl", storeUrl);
         sessionStorage.setItem("shopifyApiKey", apiKey);
 
