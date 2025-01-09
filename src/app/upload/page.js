@@ -25,7 +25,7 @@ const Upload = () => {
   }, []);
 
   const handleFileUpload = async (e) => {
-    e.preventDefault(); // Prevent default form submission behavior
+    e.preventDefault();
 
     if (!storeUrl || !apiKey) {
       return setStatus("Please provide Shopify Store URL and API Key.");
@@ -39,7 +39,6 @@ const Upload = () => {
     const formData = new FormData();
     const folderData = {};
 
-    // Organize files by folder
     files.forEach((file) => {
       const folderPath = file.webkitRelativePath.split("/")[0];
       if (!file.type.startsWith("image/")) {
@@ -52,7 +51,6 @@ const Upload = () => {
       folderData[folderPath].push(file);
     });
 
-    // Compress images before uploading
     for (const folder in folderData) {
       const compressedFiles = await imgCompressWithoutNameChange(
         folderData[folder]
@@ -62,23 +60,25 @@ const Upload = () => {
       });
     }
 
-    // Append store URL, API key, and API option
     formData.append("storeUrl", storeUrl);
     formData.append("apiKey", apiKey);
     formData.append("apiOption", apiOption);
 
-    // Use fetch API for form submission with action URL
-    const response = await fetch(`/api/upload/${apiOption}`, {
-      method: "POST",
-      body: formData,
-    });
+    try {
+      const response = await fetchWithTimeout(`/api/upload/${apiOption}`, {
+        method: "POST",
+        body: formData,
+      });
 
-    const result = await response.json();
+      const result = await response.json();
 
-    if (response.ok) {
-      setStatus("Folders uploaded successfully.");
-    } else {
-      setStatus(`Upload failed: ${result.error}`);
+      if (response.ok) {
+        setStatus("Folders uploaded successfully.");
+      } else {
+        setStatus(`Upload failed: ${result.error}`);
+      }
+    } catch (error) {
+      setStatus("Upload failed: Network error or timeout.");
     }
   };
 
@@ -86,7 +86,6 @@ const Upload = () => {
     const selectedFiles = Array.from(e.target.files);
     setFiles((prevFiles) => [...prevFiles, ...selectedFiles]);
 
-    // Extract and track the folder names
     const newFolderNames = new Set([...folderNames]);
     selectedFiles.forEach((file) => {
       const folderName = file.webkitRelativePath.split("/")[0];
@@ -119,13 +118,9 @@ const Upload = () => {
           useWebWorker: true,
         };
 
-        // Compress the image first
         const compressedFile = await imageCompression(file, options);
-
-        // Convert the compressed image to WebP format
         const webpBlob = await convertToWebP(compressedFile);
 
-        // Create a new file from the WebP blob
         const compressedFileWithOriginalName = new File(
           [webpBlob],
           file.name.replace(/\.[^/.]+$/, ".webp"),
@@ -140,11 +135,9 @@ const Upload = () => {
       }
     }
 
-    console.log(compressedFiles);
     return compressedFiles;
   };
 
-  // Helper function to convert a Blob or File to WebP
   const convertToWebP = (file) => {
     return new Promise((resolve, reject) => {
       const canvas = document.createElement("canvas");
@@ -165,7 +158,7 @@ const Upload = () => {
             }
           },
           "image/webp",
-          0.8 // Compression quality (0-1)
+          0.8
         );
       };
 
@@ -175,12 +168,33 @@ const Upload = () => {
     });
   };
 
+  const fetchWithTimeout = async (url, options, timeout = 5000) => {
+    const controller = new AbortController();
+    const timeoutId = setTimeout(() => controller.abort(), timeout);
+
+    try {
+      const response = await fetch(url, {
+        ...options,
+        signal: controller.signal,
+      });
+      return response;
+    } catch (error) {
+      if (error.name === "AbortError") {
+        console.error("Request timed out");
+      } else {
+        console.error("Fetch error:", error);
+      }
+      throw error;
+    } finally {
+      clearTimeout(timeoutId);
+    }
+  };
+
   return (
     <div className="container mx-auto p-8">
       <div className="bg-white shadow rounded-lg p-6">
         <h1 className="text-2xl font-bold mb-4">Shopify Folder Upload Tool</h1>
 
-        {/* Use a form with action */}
         <form
           onSubmit={handleFileUpload}
           method="POST"

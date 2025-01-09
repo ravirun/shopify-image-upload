@@ -29,10 +29,15 @@ const convertToWebP = async (fileBuffer, fileName) => {
   const fileExtension = fileName.split(".").pop().toLowerCase();
   if (fileExtension === "webp") return fileBuffer;
 
-  let webpBuffer = await sharp(fileBuffer).webp({ quality: 80 }).toBuffer();
+  let webpBuffer = await sharp(fileBuffer)
+    .resize(1024, 1024) // Resize image to reduce file size
+    .webp({ quality: 60 }) // Lower the quality to speed up processing
+    .toBuffer();
 
   if (webpBuffer.length > 3 * 1024 * 1024) {
-    webpBuffer = await sharp(webpBuffer).webp({ quality: 60 }).toBuffer();
+    webpBuffer = await sharp(webpBuffer)
+      .webp({ quality: 50 }) // Further compress if needed
+      .toBuffer();
   }
 
   return webpBuffer;
@@ -105,7 +110,7 @@ const uploadImageToShopify = async (
 };
 
 // Process images concurrently
-const processConcurrently = async (tasks, limit, delay = 500) => {
+const processConcurrently = async (tasks, limit = 5, delay = 1000) => {
   const results = [];
   const executing = [];
 
@@ -124,6 +129,7 @@ const processConcurrently = async (tasks, limit, delay = 500) => {
       );
     }
 
+    // Delay between tasks
     await new Promise((resolve) => setTimeout(resolve, delay));
   }
 
